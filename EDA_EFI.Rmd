@@ -151,31 +151,4 @@ contrib_b$total_contrib_pct
 
 We see that the variance per variable is not uniformly distributed. The variables for fiscal health, labor freedom, government spending, monetary freedom, the tax burden as well as trade freedom each account for more than 9% of variance in the first eight dimensions. 
 
-### Modeling
-
-To model the findings, we will use three distinct methods: Linear regression, Bayesian regression and a random forest for regression. First of all, the data is split into training and test sets. 
-
-```{r}
-splits <- initial_split(efi19_d, prop = 4/5)
-train <- training(splits)
-test <- testing(splits)
-```
-
-To enable the modeller to estimate an adequate Bayesian model, we shall try to infer a good prior distribution.
-
-```{r echo = FALSE}
-bayes <- stan_glm(gdp_percap ~ ., data = train, chains = 3, warmup = 300, iter = 1800)
-```
-
-```{r message = FALSE}
-actual <- test$gdp_percap
-stan_pred <- posterior_predict(bayes, test, draws = 1)
-rmse(actual, stan_pred)
-```
-
-```{r}
-control <- trainControl(method = 'repeatedcv', number = 10, repeats = 3, search = 'grid')
-rf_model <- train(gdp_percap ~., data = train, method = "ranger", trainControl = control)
-```
-
 [^1]: Heritage Foundation (2019), Methodology, 460.
