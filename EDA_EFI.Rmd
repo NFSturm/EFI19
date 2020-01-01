@@ -127,7 +127,7 @@ It is also possible to explore the relevance of the dimensions by means of a scr
 fviz_screeplot(pca1, barfill = "#c9c9ff", barcolor = "#c9c9ff")
 ```
 
-The first dimensions contributes an astounding 45% to the data's variance. The second dimension accounts for another ~15% and the following dimensions contribute sharpley less. 
+The first dimensions contributes an astounding 45% to the data's variance. The second dimension accounts for another ~15% and the following dimensions contribute sharply less. 
 
 From the output of the PCA object, it becomes apparent that eight dimensions of the data would be sufficient to explain ~95% of the data's variance. 12 Dimensions in total were identified. The more interesting question can now be posited: Which of the variables within the data contribute the most the overall variance and might thus have good explanatory power? 
 
