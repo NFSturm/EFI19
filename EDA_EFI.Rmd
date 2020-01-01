@@ -1,0 +1,181 @@
+---
+title: "Economic Freedom Index 2019"
+author: "Niclas Frederic Sturm"
+date: "25th of August 2019"
+output:
+  html_document:
+    theme: yeti
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+The Economic Freedom Index is an index of 186 countries published by the [Heritage Foundation](https://www.heritage.org/index/) every year, which ranks countries according to different types of economic freedom, such as business freedom or the enforcement of property rights as well as macro indicators. It has been criticized for propagating a largely economically liberal policy view. The intention of this report is an analysis of the EFI 2019 by employing both tools of Exploratory Data Analysis as well as Statistical Modeling. 
+
+```{r echo = FALSE, message = FALSE, warning = FALSE, results = "hide"}
+library(readr)
+library(readxl)
+library(dplyr)
+library(purrr)
+library(FactoMineR)
+library(ggplot2)
+library(naniar)
+library(mice)
+library(factoextra)
+library(RColorBrewer)
+library(rsample)
+library(Metrics)
+library(tibble)
+library(caret)
+library(rstanarm)
+
+set.seed(281097)
+
+setwd("/Users/nfsturm/Documents/Universitas/Datasets/Economic_Freedom_Index")
+
+efi19 <- read_excel("index2019_data.xls", range = "A1:AH186")
+
+colnames(efi19) <- c("country_id",	"country_name", "webname",	"region", "world_rank", "region_rank", "score19",	"property_rights", "judical_effectiveness",	"gov_integrity", "tax_burden",	"gov_spending",	"fiscal_health",	"business_freedom",	"labor_freedom",	"monetary_freedom",	"trade_freedom",	"invest_freedom", "financial_freedom",	"tariff_rate",	"income_tax_rate", "corp_tax_rate",	"tax_burden_pct", "gov_expend_pct", "country", "pop",	"gdp",	"gdp_growth",	"avg_gdp_growth_5",	"gdp_percap",	"unempl",	"inflation",	"fdi_mill", "public_debt_pct")
+
+efi19$country_id <- NULL # Getting rid of redundant columns 
+efi19$country <- NULL
+efi19$webname <- NULL
+
+cols <- 3:31
+
+efi19_a <- map_at(efi19, .at = cols, .f = as.numeric) # Turning columns into numbers
+efi19_a <- as_tibble(efi19_a)
+
+missing_efi19 <- miss_case_summary(efi19_a)
+
+drop_cases <- missing_efi19 %>%
+  filter(pct_miss > 50) %>%
+  select(case)
+
+drop_cases_index <- pull(drop_cases)
+
+efi19_b <-efi19_a[-drop_cases_index,]
+
+imputed_data <- mice(efi19_b, m=1, maxit = 50, method = 'pmm', seed = 500)
+efi19_c <- mice::complete(imputed_data)
+
+drop_cols <- c("gdp", "pop", "score19", "world_rank", "region_rank", "country_name")
+
+efi19_d <- efi19_c %>%
+  select(-drop_cols)
+
+efi19_e <- efi19_d[,3:13]
+
+efi19_d$region <- as.factor(efi19_d$region)
+
+scaled_efi <- scale(efi19_e)
+
+efi19_f <- efi19_d %>%
+  mutate(log_gdp_percap = log(gdp_percap))
+```
+
+<style>
+body {
+text-align: justify}
+</style>
+
+### Exploration of the data 
+
+The dataset used for this analysis has been downloaded from the wepage of the Heritage Foundation and can be accessed [here](https://www.heritage.org/index/excel/2019/index2019_data.xls). Although the data is mostly complete, there are some cases that have not been open or accessible for analysis, such as countries tormented by civil war. The entries of the countries in question have been deleted. Missing values in the remaining dataset have been imputed using the *mice*-Package, using the default "predictive mean matching"-method.
+
+As a general device, the log-measure of gross domestic product per capita has been used as a a dependent variable. The question of what truly constitutes the preconditions for wealth has vexed scholars modern and ancient alike. Modern economic growth theory has tried to identify the true drivers of economic development and visualisations of GDP per capita against a number of variables point to a complex picture. 
+
+```{r}
+ggplot(efi19_f, aes(x = gov_integrity, y = log_gdp_percap, col = region)) + geom_point() + theme_classic() + labs(x= "Government Integrity", y = "GDP per capita (Log)", col = "Region") + scale_color_brewer(palette = "Pastel1")
+```
+
+Government Integrity is among those variables that show a clear association with higher GDP per capita. This is unsurprising, of course.
+
+```{r}
+ggplot(efi19_f, aes(x = business_freedom, y = log_gdp_percap, col = region)) + geom_point() + theme_classic() + labs(x= "Business Freedom", y = "GDP per capita (Log)", col = "Region") + scale_color_brewer(palette = "Pastel2") 
+```
+
+The second set of variables that could account for higher wealth is the "freedom" category. Freedom higher refers to certain institutional conditions that foster the growth of free enterprise.
+
+```{r}
+ggplot(efi19_f, aes(x = tax_burden_pct, y = log_gdp_percap, col = region)) + geom_point() + theme_classic() + labs(x= "Tax Burden Pct", y = "GDP per capita (Log)", col = "Region") + scale_color_brewer(palette = "Pastel2") 
+```
+
+Finally, we turn our view to a great dispute within economic theory, that is the adequate level of both taxation and government spending. While the creators of the Index maintain that "[n]o attempt has been made to identify an optimal level of government spending"[^1] it becomes obvious that the Heritage Foundation adheres to classical economic theory in assessing how the government influences an economy's wellbeing. The graph of GDP per capita vs. tax burden for example, paints a diverse pictures with both low-income and high-income economies operating under vastly different tax regimes.
+
+### Principal Component Analysis
+
+Let us now turn to a closer analysis of the underlying structure of the data. For this, we are going to use the popular dimensionality reduction techniqe of "Principal Component Analysis" (henceforth PCA). To this end, a special dataframe has been created, which contains only data from the index, procluding macroeconomic indicators. This dataframe needs to be standardized before a PCA can be conducted.
+
+```{r}
+pca1 <- PCA(scaled_efi, ncp = 10, graph = FALSE)
+```
+
+We will now explore the results of our PCA.
+
+```{r tidy = TRUE}
+pca1$eig
+```
+
+It is also possible to explore the relevance of the dimensions by means of a screeplot.
+
+```{r}
+fviz_screeplot(pca1, barfill = "#c9c9ff", barcolor = "#c9c9ff")
+```
+
+The first dimensions contributes an astounding 45% to the data's variance. The second dimension accounts for another ~15% and the following dimensions contribute sharpley less. 
+
+From the output of the PCA object, it becomes apparent that eight dimensions of the data would be sufficient to explain ~95% of the data's variance. 12 Dimensions in total were identified. The more interesting question can now be posited: Which of the variables within the data contribute the most the overall variance and might thus have good explanatory power? 
+
+```{r}
+pca1$var$contrib
+```
+
+We propose a simple way to make use of the contributions by each variable. We will sum the contributions by variable for each dimension. If one variable would account for *all* the variance in the data, this value would equal 800, which is 100% of variance for eight dimensions in total. Then we calculate the percentage of this overall variance by dividing the rowsum for each variable by 800. 
+
+```{r}
+contrib <- pca1$var$contrib
+rnames <- tibble::enframe((rownames(contrib)))
+contrib <- as_tibble(contrib)
+contrib_a <- bind_cols(contrib, rnames)
+
+contrib_b <- contrib_a %>%
+  mutate(total_contrib_pct = rowSums(contrib_a[,1:8])/800) %>%
+  arrange(desc(total_contrib_pct))
+contrib_b$total_contrib_pct
+``` 
+
+We see that the variance per variable is not uniformly distributed. The variables for fiscal health, labor freedom, government spending, monetary freedom, the tax burden as well as trade freedom each account for more than 9% of variance in the first eight dimensions. 
+
+### Modeling
+
+To model the findings, we will use three distinct methods: Linear regression, Bayesian regression and a random forest for regression. First of all, the data is split into training and test sets. 
+
+```{r}
+splits <- initial_split(efi19_d, prop = 4/5)
+train <- training(splits)
+test <- testing(splits)
+```
+
+To enable the modeller to estimate an adequate Bayesian model, we shall try to infer a good prior distribution.
+
+```{r echo = FALSE}
+bayes <- stan_glm(gdp_percap ~ ., data = train, chains = 3, warmup = 300, iter = 1800)
+```
+
+```{r message = FALSE}
+actual <- test$gdp_percap
+stan_pred <- posterior_predict(bayes, test, draws = 1)
+rmse(actual, stan_pred)
+```
+
+```{r}
+control <- trainControl(method = 'repeatedcv', number = 10, repeats = 3, search = 'grid')
+rf_model <- train(gdp_percap ~., data = train, method = "ranger", trainControl = control)
+```
+
+[^1]: Heritage Foundation (2019), Methodology, 460.
