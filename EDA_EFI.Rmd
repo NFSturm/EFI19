@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Introduction
 
-The Economic Freedom Index is an index of 186 countries published by the [Heritage Foundation](https://www.heritage.org/index/) every year, which ranks countries according to different types of economic freedom, such as business freedom or the enforcement of property rights as well as macro indicators. It has been criticized for propagating a largely economically liberal policy view. The intention of this report is an analysis of the EFI 2019 by employing both tools of Exploratory Data Analysis as well as Statistical Modeling. 
+The Economic Freedom Index is an index of 186 countries published by the [Heritage Foundation](https://www.heritage.org/index/) every year, which ranks countries according to different types of economic freedom, such as business freedom or the enforcement of property rights as well as macro indicators. It has been criticized for propagating a largely economically liberal policy view. The intention of this report is an analysis of the EFI 2019 by employing tools of Exploratory Data Analysis.
 
 ```{r echo = FALSE, message = FALSE, warning = FALSE, results = "hide"}
 library(readr)
